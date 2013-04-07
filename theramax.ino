@@ -29,31 +29,35 @@ void setup() {
 }
 
 void loop() {
-  currentDistance = 10;
+  doDistanceStuff(elapsed);
   buzz(currentDistance * 4000.0 / 24.0);
-  
-  if(state == STATE_WAITING_FOR_ECHO) {
-    if(ms_since_echo == 8) {
-      digitalWrite(trigPin, LOW);
-    }
-  }
   
   elapsed++;
   delayMicroseconds(1);
 }
 
+void doDistanceStuff(long elapsed) {
+  if(elapsed % 12 == 0) {
+    digitalWrite(trigPin, LOW);
+    long duration = pulseIn(echoPin, HIGH);
+    currentDistance = (duration/2) / 29.1;
+    Serial.print(currentDistance);
+    Serial.println(" cm");
+  }
+  else if(elapsed % 12 == 2) {
+    digitalWrite(trigPin, HIGH);
+  }
+}
+
 long getDistance() {
   long duration, distance;
-  digitalWrite(trigPin, LOW);  // Added this line
-  delayMicroseconds(1); // Added this line
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
   digitalWrite(trigPin, HIGH);
-//  delayMicroseconds(1000); - Removed this line
-  delayMicroseconds(5); // Added this line
+  delayMicroseconds(10);
   digitalWrite(trigPin, LOW);
   duration = pulseIn(echoPin, HIGH);
-  distance = (duration/2) / 29.1;
-  Serial.print(distance);
-  Serial.println(" cm");  
+
   return distance;
 }
 
