@@ -1,5 +1,11 @@
 /*
-Based on http://www.instructables.com/id/Simple-Arduino-and-HC-SR04-Example/step3/Upload-the-sketch/
+Theremax, a theremin-like instrument for Arduino.
+
+Some resources which were helpful:
+http://www.instructables.com/id/Simple-Arduino-and-HC-SR04-Example/step3/Upload-the-sketch/
+http://playground.arduino.cc/Code/NewPing
+
+
 */
 
 #define trigPin 3
