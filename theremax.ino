@@ -7,6 +7,7 @@ Based on http://www.instructables.com/id/Simple-Arduino-and-HC-SR04-Example/step
 #define speakerPin 9
 #define buttonPin 4
 #define sharpPin 7
+#define metronomeLightPin 5
 
 //Pin connected to ST_CP of 74HC595
 int latchPin = 8;
@@ -26,6 +27,7 @@ unsigned long currentTime;
 
 double distanceCheckTimer[1] = {0};
 double buttonCheckTimer[1] = {0};
+double metronomeTimer[1] = {0};
 
 double cMajorScale[8] = {130.81, 146.83, 164.81, 174.61, 196.0, 220.0, 246.94, 261.63};
 
@@ -35,14 +37,15 @@ void setup() {
   pinMode(echoPin, INPUT);
   pinMode(speakerPin, OUTPUT);
   pinMode(buttonPin, INPUT);
-  //pinMode(sharpPin, INPUT);
+  pinMode(sharpPin, INPUT);
   pinMode(latchPin, OUTPUT);
   pinMode(clockPin, OUTPUT);
   pinMode(dataPin, OUTPUT);
+  pinMode(metronomeLightPin, OUTPUT);
 }
 
 boolean tick(int delay, double timekeeper[1]){
-  currentTime = millis();
+  currentTime = micros() / 1000;
   if(currentTime >= (timekeeper[0] + delay)){
     timekeeper[0] = currentTime;
     return true;
@@ -61,6 +64,8 @@ double playingTone;
 
 int lastToneIndex;
 int sharpPressed = 0;
+
+boolean metronomeOn = false;
 
 void loop() {
   int toneIndex = lastToneIndex;
@@ -121,6 +126,11 @@ void loop() {
       playing = true;
       playingTone = newTone;
     }
+  }
+
+  if(tick(1000, metronomeTimer)) {
+    metronomeOn = !metronomeOn;
+    analogWrite(metronomeLightPin, metronomeOn ? 255 : 0);
   }
 }
 
