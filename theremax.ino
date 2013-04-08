@@ -7,6 +7,13 @@ Based on http://www.instructables.com/id/Simple-Arduino-and-HC-SR04-Example/step
 #define speakerPin 9
 #define buttonPin 4
 
+//Pin connected to ST_CP of 74HC595
+int latchPin = 8;
+//Pin connected to SH_CP of 74HC595
+int clockPin = 12;
+////Pin connected to DS of 74HC595
+int dataPin = 11;
+
 #include <NewPing.h>
 #define MAX_SENSOR_DISTANCE 200 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
 
@@ -27,6 +34,9 @@ void setup() {
   pinMode(echoPin, INPUT);
   pinMode(speakerPin, OUTPUT);
   pinMode(buttonPin, INPUT);
+  pinMode(latchPin, OUTPUT);
+  pinMode(clockPin, OUTPUT);
+  pinMode(dataPin, OUTPUT);
 }
 
 boolean tick(int delay, double timekeeper[1]){
@@ -47,15 +57,28 @@ int buttonPressed = 0;
 boolean playing = false;
 double playingTone;
 
+int lastToneIndex;
+
 void loop() {
+  int toneIndex = lastToneIndex;
+
   if(tick(50, distanceCheckTimer)) {
     updateDistance();
+    toneIndex = distanceToIndex(currentDistance, playingTone);
+    if(toneIndex >= 0 && toneIndex != lastToneIndex) {
+      noteLightOn(toneIndex);
+    }
+    else if(toneIndex < 0 && toneIndex != lastToneIndex) {
+      noteLightOff();
+    }
+    lastToneIndex = toneIndex;
   }
+
   if(tick(10, buttonCheckTimer)) {
     buttonPressed = digitalRead(buttonPin);
   }
 
-  double newTone = distanceToFreq(currentDistance, playingTone);
+  double newTone = toneIndex >= 0 ? cMajorScale[toneIndex] : toneIndex;
 
   Serial.print(" distance ");
   Serial.print(currentDistance);
@@ -96,13 +119,36 @@ void loop() {
   }
 }
 
+void noteLightOn(int index) {
+  index = 7 - index;
+  // last light isn't working
+  if(index == 0) {
+    index = 7;
+  }
+  shiftValue(1 << index);
+}
+
+void noteLightOff() {
+  shiftValue(0);
+}
+
+void shiftValue(int value) {
+  // take the latchPin low so
+  // the LEDs don't change while you're sending in bits:
+  digitalWrite(latchPin, LOW);
+  // shift out the bits:
+  shiftOut(dataPin, clockPin, MSBFIRST, value);
+  //take the latch pin high so the LEDs will light up:
+  digitalWrite(latchPin, HIGH);
+}
+
 const int MIN_DISTANCE = 300;
 const int NUM_NOTES = 8; // c major for now
 const double NOTE_WIDTH = 300.0;
 const double NOTE_BOUNDARY_WIDTH = 40;
 double MAX_DISTANCE = MIN_DISTANCE + NUM_NOTES * NOTE_WIDTH;
 
-double distanceToFreq(unsigned int distance, double currentTone) {
+int distanceToIndex(unsigned int distance, double currentTone) {
   if(distance < MIN_DISTANCE || distance > MAX_DISTANCE) {
     return -1;
   }
@@ -115,7 +161,7 @@ double distanceToFreq(unsigned int distance, double currentTone) {
     return -2;
   }
 
-  return cMajorScale[index];
+  return index;
 }
 
 void updateDistance() {
