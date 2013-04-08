@@ -6,6 +6,7 @@ Based on http://www.instructables.com/id/Simple-Arduino-and-HC-SR04-Example/step
 #define echoPin 2
 #define speakerPin 9
 #define buttonPin 4
+#define sharpPin 7
 
 //Pin connected to ST_CP of 74HC595
 int latchPin = 8;
@@ -34,6 +35,7 @@ void setup() {
   pinMode(echoPin, INPUT);
   pinMode(speakerPin, OUTPUT);
   pinMode(buttonPin, INPUT);
+  //pinMode(sharpPin, INPUT);
   pinMode(latchPin, OUTPUT);
   pinMode(clockPin, OUTPUT);
   pinMode(dataPin, OUTPUT);
@@ -58,10 +60,10 @@ boolean playing = false;
 double playingTone;
 
 int lastToneIndex;
+int sharpPressed = 0;
 
 void loop() {
   int toneIndex = lastToneIndex;
-
   if(tick(50, distanceCheckTimer)) {
     updateDistance();
     toneIndex = distanceToIndex(currentDistance, lastToneIndex);
@@ -76,6 +78,7 @@ void loop() {
 
   if(tick(10, buttonCheckTimer)) {
     buttonPressed = digitalRead(buttonPin);
+    sharpPressed = digitalRead(sharpPin);
   }
 
   double newTone = toneIndex >= 0 ? cMajorScale[toneIndex] : toneIndex;
@@ -84,6 +87,8 @@ void loop() {
   Serial.print(currentDistance);
   Serial.print(" button pressed ");
   Serial.print(buttonPressed);
+  Serial.print(" sharp pressed ");
+  Serial.print(sharpPressed);
   Serial.print(" playingTone ");
   Serial.print(playingTone);
   Serial.print(" newTone ");
@@ -94,7 +99,6 @@ void loop() {
     consecutiveOutOfRange++;
     if(consecutiveOutOfRange >= OFF_CYCLE_THRESHOLD) {
       if(playing) {
-        Serial.println("notone");
         noTone(speakerPin);
         playing = false;
       }
@@ -103,15 +107,16 @@ void loop() {
   else if(!buttonPressed || newTone == -2) {
     consecutiveOutOfRange = 0;
     if(playing) {
-      Serial.println("notone");
       noTone(speakerPin);
       playing = false;
     }
   }
   else if(newTone > 0) {
     consecutiveOutOfRange = 0;
+    if(sharpPressed) {
+      newTone = newTone * 1.059463094359;
+    }
     if(!playing || newTone != playingTone) {
-      Serial.println("tone");
       tone(speakerPin, newTone);
       playing = true;
       playingTone = newTone;
