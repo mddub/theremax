@@ -64,7 +64,7 @@ void loop() {
 
   if(tick(50, distanceCheckTimer)) {
     updateDistance();
-    toneIndex = distanceToIndex(currentDistance, playingTone);
+    toneIndex = distanceToIndex(currentDistance, lastToneIndex);
     if(toneIndex >= 0 && toneIndex != lastToneIndex) {
       noteLightOn(toneIndex);
     }
@@ -121,10 +121,6 @@ void loop() {
 
 void noteLightOn(int index) {
   index = 7 - index;
-  // last light isn't working
-  if(index == 0) {
-    index = 7;
-  }
   shiftValue(1 << index);
 }
 
@@ -148,7 +144,10 @@ const double NOTE_WIDTH = 300.0;
 const double NOTE_BOUNDARY_WIDTH = 40;
 double MAX_DISTANCE = MIN_DISTANCE + NUM_NOTES * NOTE_WIDTH;
 
-int distanceToIndex(unsigned int distance, double currentTone) {
+int consecutiveChangedNote = 0;
+const int NOTE_CHANGE_THRESHOLD = 4;
+
+int distanceToIndex(unsigned int distance, double currentIndex) {
   if(distance < MIN_DISTANCE || distance > MAX_DISTANCE) {
     return -1;
   }
@@ -156,11 +155,19 @@ int distanceToIndex(unsigned int distance, double currentTone) {
   int index = (distance - MIN_DISTANCE) / NOTE_WIDTH;
   index = index % NUM_NOTES;
 
-  // there is a valley between notes where no sound is produced
+  // there is a segment at either edge of each note which must be debounced before it is accepted as a note change
   if(distance < MIN_DISTANCE + index * NOTE_WIDTH + NOTE_BOUNDARY_WIDTH || distance > MIN_DISTANCE + (index + 1) * NOTE_WIDTH - NOTE_BOUNDARY_WIDTH) {
-    return -2;
+    if(index != currentIndex) {
+      if(++consecutiveChangedNote > NOTE_CHANGE_THRESHOLD) {
+        return index;
+      }
+      else {
+        return currentIndex;
+      }
+    }
+  } else {
+    consecutiveChangedNote = 0;
   }
-
   return index;
 }
 
