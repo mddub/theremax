@@ -4,16 +4,19 @@ Theremax, a theremin-like instrument for Arduino.
 Some resources which were helpful:
 http://www.instructables.com/id/Simple-Arduino-and-HC-SR04-Example/step3/Upload-the-sketch/
 http://playground.arduino.cc/Code/NewPing
+https://code.google.com/p/rogue-code/wiki/ToneLibraryDocumentation
 */
 
 #include <NewPing.h>
+#include <Tone.h>
 
 ///////////////////////////////////
 // constants
 
 #define trigPin 3
 #define echoPin 2
-#define speakerPin 9
+#define speakerPin1 9
+#define speakerPin2 10
 #define buttonPin 4
 #define sharpPin 7
 #define metronomeLightPin 5
@@ -25,7 +28,15 @@ int clockPin = 12;
 ////Pin connected to DS of 74HC595
 int dataPin = 11;
 
-double cMajorScale[8] = {130.81, 146.83, 164.81, 174.61, 196.0, 220.0, 246.94, 261.63};
+double scales[5][8] = {
+  {NOTE_C3, NOTE_D3, NOTE_E3, NOTE_F3, NOTE_G3, NOTE_A3, NOTE_B3},
+  {NOTE_C4, NOTE_D4, NOTE_E4, NOTE_F4, NOTE_G4, NOTE_A4, NOTE_B4},
+  {NOTE_C5, NOTE_D5, NOTE_E5, NOTE_F5, NOTE_G5, NOTE_A5, NOTE_B5},
+  {NOTE_C6, NOTE_D6, NOTE_E6, NOTE_F6, NOTE_G6, NOTE_A6, NOTE_B6},
+  {NOTE_C7, NOTE_D7, NOTE_E7, NOTE_F7, NOTE_G7, NOTE_A7, NOTE_B7}
+};
+
+int currentScale = 0;
 double HALF_STEP_RATIO = 1.059463094359;
 
 #define MAX_SENSOR_DISTANCE 200 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
@@ -34,6 +45,8 @@ double HALF_STEP_RATIO = 1.059463094359;
 // globals
 
 NewPing sonar(trigPin, echoPin, MAX_SENSOR_DISTANCE); // NewPing setup of pins and maximum distance.
+
+Tone notePlayer[2];
 
 long currentDistance = 0;
 
@@ -70,15 +83,19 @@ int currentLoopPosition = 0;
 
 void setup() {
   Serial.begin(9600);
+
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
-  pinMode(speakerPin, OUTPUT);
   pinMode(buttonPin, INPUT);
   pinMode(sharpPin, INPUT);
   pinMode(latchPin, OUTPUT);
   pinMode(clockPin, OUTPUT);
   pinMode(dataPin, OUTPUT);
   pinMode(metronomeLightPin, OUTPUT);
+
+  notePlayer[0].begin(speakerPin1);
+  notePlayer[1].begin(speakerPin2);
+
   for(int i = 0; i < MAX_NOTES; i++) {
     currentSong[i] = -1;
   }
@@ -152,18 +169,18 @@ void updatePlayingTone() {
   boolean shouldPlay;
   if(currentToneIndex == -1 || !playButtonPressed) {
     if(playing) {
-      noTone(speakerPin);
+      notePlayer[0].stop();
       playing = false;
       playingTone = -1;
     }
   }
   else if(currentToneIndex >= 0) {
-    double newTone = currentToneIndex >= 0 ? cMajorScale[currentToneIndex] : currentToneIndex;
+    double newTone = currentToneIndex >= 0 ? scales[currentScale][currentToneIndex] : currentToneIndex;
     if(sharpPressed) {
       newTone = newTone * HALF_STEP_RATIO;
     }
     if(!playing || newTone != playingTone) {
-      tone(speakerPin, newTone);
+      notePlayer[0].play(newTone);
       playing = true;
       playingTone = newTone;
     }
@@ -188,12 +205,12 @@ void updateRecordingTone(boolean playButtonChanged, boolean loopChanged) {
     if(!playButtonPressed) {
       double newTone = currentSong[currentLoopPosition];
       if(newTone >= 0 && (!playing || newTone != playingTone)) {
-        tone(speakerPin, newTone);
+        notePlayer[0].play(newTone);
         playing = true;
         playingTone = newTone;
       }
       else if(newTone < 0 && playing) {
-        noTone(speakerPin);
+        notePlayer[0].stop();
         playing = false;
       }
     }
