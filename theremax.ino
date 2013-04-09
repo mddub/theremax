@@ -38,10 +38,11 @@ NewPing sonar(trigPin, echoPin, MAX_SENSOR_DISTANCE); // NewPing setup of pins a
 long currentDistance = 0;
 
 double distanceCheckTimer[1] = {0};
-double buttonCheckTimer[1] = {0};
-double metronomeTimer[1] = {0};
+double playButtonCheckTimer[1] = {0};
+double sharpCheckTimer[1] = {0};
+double loopTimer[1] = {0};
 
-int buttonPressed = 0;
+int playButtonPressed = 0;
 boolean playing = false;
 double playingTone;
 
@@ -49,6 +50,22 @@ int currentToneIndex;
 int sharpPressed = 0;
 
 boolean metronomeOn = false;
+
+const boolean MODE_FREESTYLE = true;
+const boolean MODE_LOOP = false;
+boolean mode = MODE_LOOP;
+
+#define NUM_SAMPLES_PER_NOTE 8
+#define MAX_NOTES 64
+int currentTempo = 150; // length of quarter note, in ms
+
+double samples[NUM_SAMPLES_PER_NOTE];
+//double currentSong[MAX_NOTES];
+// ode to joy for now
+double currentSong[64] = {164.81, -1, 164.81, -1, 174.61, -1, 196, -1, 196, -1, 174.61, -1, 164.81, -1, 146.83, -1, 130.81, -1, 130.81, -1, 146.83, -1, 164.81, -1, 164.81, 164.81, 164.81, -1, 146.83, -1, 146.83, 146.83, 146.83, 146.83, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+
+int currentSampleIndex = 0;
+int currentLoopPosition = 0;
 
 ///////////////////////////////////
 
@@ -66,28 +83,46 @@ void setup() {
 }
 
 void loop() {
-  boolean buttonChanged = updateButtonState();
-  boolean toneChanged = updateCurrentToneIndex();
+  boolean playButtonChanged = updatePlayButtonState();
+  boolean sharpButtonChanged = updateSharpButtonState();
+  boolean toneIndexChanged = updateCurrentToneIndex();
 
-  if(toneChanged) {
+  boolean loopChanged = updateLoopPosition();
+
+  tickMetronomeLight();
+
+  if(toneIndexChanged) {
     updateHighlightedTone(currentToneIndex);
   }
-  if(toneChanged || buttonChanged) {
-    updatePlayingTone(currentToneIndex);
-  }
 
-  tickMetronome();
+  if(mode == MODE_FREESTYLE) {
+    if(toneIndexChanged || playButtonChanged || sharpButtonChanged) {
+      updatePlayingTone();
+    }
+  }
+  else if(mode == MODE_LOOP) {
+    if(toneIndexChanged || playButtonChanged || sharpButtonChanged || loopChanged) {
+      updateRecordingTone(playButtonChanged, loopChanged);
+    }
+  }
 }
 
 ///////////////////////////////////
 
-boolean updateButtonState() {
-  if(tick(11, buttonCheckTimer)) {
-    int oldButton = buttonPressed;
+boolean updatePlayButtonState() {
+  if(tick(11, playButtonCheckTimer)) {
+    int oldButton = playButtonPressed;
+    playButtonPressed = digitalRead(buttonPin);
+    return oldButton != playButtonPressed;
+  }
+  return false;
+}
+
+boolean updateSharpButtonState() {
+  if(tick(11, sharpCheckTimer)) {
     int oldSharp = sharpPressed;
-    buttonPressed = digitalRead(buttonPin);
     sharpPressed = digitalRead(sharpPin);
-    return (oldButton != buttonPressed || oldSharp != sharpPressed);
+    return oldSharp != sharpPressed;
   }
   return false;
 }
@@ -111,22 +146,20 @@ void updateHighlightedTone(int toneIndex) {
   }
 }
 
-void updatePlayingTone(int toneIndex) {
+void updatePlayingTone() {
   boolean shouldPlay;
-  if(toneIndex == -1 || !buttonPressed) {
+  if(currentToneIndex == -1 || !playButtonPressed) {
     if(playing) {
-      Serial.println("notone");
       noTone(speakerPin);
       playing = false;
     }
   }
-  else if(toneIndex >= 0) {
-    double newTone = toneIndex >= 0 ? cMajorScale[toneIndex] : toneIndex;
+  else if(currentToneIndex >= 0) {
+    double newTone = currentToneIndex >= 0 ? cMajorScale[currentToneIndex] : currentToneIndex;
     if(sharpPressed) {
       newTone = newTone * HALF_STEP_RATIO;
     }
     if(!playing || newTone != playingTone) {
-      Serial.println("tone");
       tone(speakerPin, newTone);
       playing = true;
       playingTone = newTone;
@@ -134,8 +167,75 @@ void updatePlayingTone(int toneIndex) {
   }
 }
 
-void tickMetronome() {
-  if(tick(1000, metronomeTimer)) {
+boolean updateLoopPosition() {
+  int sampleFreq = currentTempo / NUM_SAMPLES_PER_NOTE;
+  if(tick(sampleFreq, loopTimer)) {
+    currentSampleIndex++;
+    if(currentSampleIndex == NUM_SAMPLES_PER_NOTE) {
+      currentSampleIndex = 0;
+      currentLoopPosition = (currentLoopPosition + 1) % MAX_NOTES;
+    }
+    return true;
+  }
+  return false;
+}
+
+void updateRecordingTone(boolean playButtonChanged, boolean loopChanged) {
+  if(loopChanged) {
+    if(!playButtonPressed) {
+      double newTone = currentSong[currentLoopPosition];
+      if(newTone >= 0 && (!playing || newTone != playingTone)) {
+        tone(speakerPin, newTone);
+        playing = true;
+        playingTone = newTone;
+      }
+      else if(newTone < 0 && playing) {
+        noTone(speakerPin);
+        playing = false;
+      }
+    }
+    else {
+      updatePlayingTone();
+	  updateRecordedNote();
+    }
+  }
+}
+
+void updateRecordedNote() {
+  samples[currentSampleIndex] = playingTone;
+  if(currentSampleIndex == 0) {
+    // need to decide what to save for previous note
+    int previousNoteIndex = (currentLoopPosition - 1) % MAX_NOTES;
+    currentSong[previousNoteIndex] = determineSampledNoteValue();
+  }
+}
+
+double determineSampledNoteValue() {
+  // do a really dumb O(n^2) search through the array to
+  // find the first value with >= 50% representation.
+  int minSamples = NUM_SAMPLES_PER_NOTE / 2;
+
+  for(int i = 0; i < NUM_SAMPLES_PER_NOTE; i++) {
+    double candidateValue = samples[i];
+	int count = 0;
+	for(int j = 0; j < NUM_SAMPLES_PER_NOTE; j++) {
+	  if(abs(candidateValue - samples[j]) < 0.001) {
+	    count++;
+	  }
+	}
+	if(count >= minSamples) {
+	  return candidateValue;
+	}
+  }
+
+  // if no candidate, record silence.
+  return -1;
+}
+
+void tickMetronomeLight() {
+  int currentNote = currentLoopPosition / 4;
+  boolean metronomeState = currentNote % 2;
+  if(metronomeState != metronomeOn) {
     metronomeOn = !metronomeOn;
     analogWrite(metronomeLightPin, metronomeOn ? 255 : 0);
   }
