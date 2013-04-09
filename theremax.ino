@@ -19,6 +19,7 @@ https://code.google.com/p/rogue-code/wiki/ToneLibraryDocumentation
 #define speakerPin2 10
 #define buttonPin 4
 #define sharpPin 7
+#define modePin 13
 #define metronomeLightPin 5
 
 //Pin connected to ST_CP of 74HC595
@@ -68,6 +69,12 @@ const boolean MODE_FREESTYLE = true;
 const boolean MODE_LOOP = false;
 boolean mode = MODE_FREESTYLE;
 
+const int BUTTON_NO_CLICK = 0;
+const int BUTTON_CLICKED = 1;
+const int BUTTON_DOUBLE_CLICKED = 2;
+
+const int DOUBLE_CLICK_WINDOW = 500;
+
 #define NUM_SAMPLES_PER_NOTE 16
 #define MAX_NOTES 128
 int currentTempo = 50; // length of sixteenth note, in ms
@@ -87,6 +94,7 @@ void setup() {
   pinMode(echoPin, INPUT);
   pinMode(buttonPin, INPUT);
   pinMode(sharpPin, INPUT);
+  pinMode(modePin, INPUT);
   pinMode(latchPin, OUTPUT);
   pinMode(clockPin, OUTPUT);
   pinMode(dataPin, OUTPUT);
@@ -107,7 +115,23 @@ void loop() {
 
   boolean loopChanged = updateLoopPosition();
 
-  tickMetronomeLight();
+  int modeButtonState = checkModeButtonState();
+
+  if(modeButtonState == BUTTON_CLICKED) {
+    // switch knob mode (change tempo vs change octave)
+  }
+  else if(modeButtonState == BUTTON_DOUBLE_CLICKED) {
+    // switch instrument mode (freestyle vs loop)
+    mode = (mode == MODE_FREESTYLE ? MODE_LOOP : MODE_FREESTYLE);
+  }
+
+  if(mode == MODE_LOOP) {
+    tickMetronomeLight();
+  }
+  else {
+    disableMetronomeLight();
+  }
+
 
   if(toneIndexChanged) {
     updateHighlightedTone(currentToneIndex);
@@ -143,6 +167,13 @@ boolean updateSharpButtonState() {
     return oldSharp != sharpPressed;
   }
   return false;
+}
+
+int checkModeButtonState() {
+  int buttonDown = digitalRead(modePin);
+  int wasButtonPress = button_press(buttonDown);
+  int buttonState = interpretButtonPress(wasButtonPress);
+  return buttonState;
 }
 
 boolean updateCurrentToneIndex() {
@@ -256,6 +287,11 @@ void tickMetronomeLight() {
   }
 }
 
+void disableMetronomeLight() {
+  metronomeOn = false;
+  analogWrite(metronomeLightPin, 0);
+}
+
 ///////////////////////////////////
 // distance to index, with debouncing of out-of-range notes and note changes
 
@@ -327,6 +363,9 @@ void updateDistance() {
   }
 }
 
+///////////////////////////////////
+// below adapted from https://github.com/jerwil/RTC_demo_rotary_alarm
+
 boolean tick(int delay, double timekeeper[1]){
   unsigned long currentTime = millis();
   if(currentTime >= (timekeeper[0] + delay)){
@@ -335,5 +374,58 @@ boolean tick(int delay, double timekeeper[1]){
   }
   else {
     return 0;
+  }
+}
+
+int button_press_initiated[1];
+int button_press_completed[1];
+
+int button_press(int button_indicator) {
+  if (button_indicator == 0 && button_press_initiated[0] == 1) {
+    button_press_completed[0] = 1;
+    button_press_initiated[0] = 0;
+  }
+  else if (button_indicator == 1) {
+    button_press_initiated[0] = 1;
+    button_press_completed[0] = 0;
+  }
+  else {
+    button_press_completed[0] = 0;
+  }
+  return button_press_completed[0];
+}
+
+unsigned long double_click_timeout;
+int click_once;
+
+int interpretButtonPress(int button_pushed) {
+  int click_complete = 0;
+  int double_click_complete = 0;
+  if (button_pushed == 1) {
+    if (click_once == 1 && millis() <= double_click_timeout + DOUBLE_CLICK_WINDOW) {
+      double_click_complete = 1;
+      click_once = 0;
+    }
+    else if (click_once == 0) {
+      click_once = 1;
+      double_click_complete = 0;
+      double_click_timeout = millis();
+    }
+  }
+  else if (button_pushed == 0 && millis() >= double_click_timeout + DOUBLE_CLICK_WINDOW) {
+    if(click_once) {
+      click_complete = 1;
+    }
+    click_once = 0;
+    double_click_complete = 0;
+  }
+  if(click_complete) {
+    return BUTTON_CLICKED;
+  }
+  else if(double_click_complete) {
+    return BUTTON_DOUBLE_CLICKED;
+  }
+  else {
+    return BUTTON_NO_CLICK;
   }
 }
