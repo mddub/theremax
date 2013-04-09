@@ -55,14 +55,13 @@ const boolean MODE_FREESTYLE = true;
 const boolean MODE_LOOP = false;
 boolean mode = MODE_LOOP;
 
-#define NUM_SAMPLES_PER_NOTE 8
-#define MAX_NOTES 64
-int currentTempo = 150; // length of quarter note, in ms
+#define NUM_SAMPLES_PER_NOTE 16
+#define MAX_NOTES 128
+int currentTempo = 50; // length of sixteenth note, in ms
 
 double samples[NUM_SAMPLES_PER_NOTE];
-//double currentSong[MAX_NOTES];
-// ode to joy for now
-double currentSong[64] = {164.81, -1, 164.81, -1, 174.61, -1, 196, -1, 196, -1, 174.61, -1, 164.81, -1, 146.83, -1, 130.81, -1, 130.81, -1, 146.83, -1, 164.81, -1, 164.81, 164.81, 164.81, -1, 146.83, -1, 146.83, 146.83, 146.83, 146.83, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+double currentSong[MAX_NOTES];
+//double currentSong[64] = {164.81, -1, 164.81, -1, 174.61, -1, 196, -1, 196, -1, 174.61, -1, 164.81, -1, 146.83, -1, 130.81, -1, 130.81, -1, 146.83, -1, 164.81, -1, 164.81, 164.81, 164.81, -1, 146.83, -1, 146.83, 146.83, 146.83, 146.83, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 
 int currentSampleIndex = 0;
 int currentLoopPosition = 0;
@@ -80,6 +79,9 @@ void setup() {
   pinMode(clockPin, OUTPUT);
   pinMode(dataPin, OUTPUT);
   pinMode(metronomeLightPin, OUTPUT);
+  for(int i = 0; i < MAX_NOTES; i++) {
+    currentSong[i] = -1;
+  }
 }
 
 void loop() {
@@ -128,7 +130,7 @@ boolean updateSharpButtonState() {
 }
 
 boolean updateCurrentToneIndex() {
-  if(tick(50, distanceCheckTimer)) {
+  if(tick(40, distanceCheckTimer)) {
     updateDistance();
     int oldToneIndex = currentToneIndex;
     updateIndexFromDistance(currentDistance);
@@ -152,6 +154,7 @@ void updatePlayingTone() {
     if(playing) {
       noTone(speakerPin);
       playing = false;
+      playingTone = -1;
     }
   }
   else if(currentToneIndex >= 0) {
