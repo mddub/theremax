@@ -37,10 +37,12 @@ double scales[5][8] = {
   {NOTE_C7, NOTE_D7, NOTE_E7, NOTE_F7, NOTE_G7, NOTE_A7, NOTE_B7, NOTE_C8}
 };
 
-int currentScale = 0;
 double HALF_STEP_RATIO = 1.059463094359;
 
 #define MAX_SENSOR_DISTANCE 200 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
+
+const int MODE_BUTTON_CHECK_FREQUENCY = 20; // ms
+const int BUTTON_HOLD_MIN_LENGTH = 6;
 
 ///////////////////////////////////
 // globals
@@ -69,15 +71,15 @@ const boolean MODE_FREESTYLE = true;
 const boolean MODE_LOOP = false;
 boolean mode = MODE_FREESTYLE;
 
+int currentScale = 0;
+
 const int BUTTON_NO_CLICK = 0;
 const int BUTTON_CLICKED = 1;
-const int BUTTON_DOUBLE_CLICKED = 2;
-
-const int DOUBLE_CLICK_WINDOW = 500;
+const int BUTTON_LONG_CLICKED = 2;
 
 #define NUM_SAMPLES_PER_NOTE 16
 #define MAX_NOTES 128
-int currentTempo = 50; // length of sixteenth note, in ms
+int currentTempo = 50; // length of quarter note, in ms
 
 double samples[NUM_SAMPLES_PER_NOTE];
 double currentSong[MAX_NOTES];
@@ -88,6 +90,7 @@ int currentLoopPosition = 0;
 ///////////////////////////////////
 
 void setup() {
+  // TODO remove
   Serial.begin(9600);
 
   pinMode(trigPin, OUTPUT);
@@ -115,12 +118,12 @@ void loop() {
 
   boolean loopChanged = updateLoopPosition();
 
-  int modeButtonState = checkModeButtonState();
+  int modeButtonState = getModeButtonState();
 
   if(modeButtonState == BUTTON_CLICKED) {
     // switch knob mode (change tempo vs change octave)
   }
-  else if(modeButtonState == BUTTON_DOUBLE_CLICKED) {
+  else if(modeButtonState == BUTTON_LONG_CLICKED) {
     // switch instrument mode (freestyle vs loop)
     mode = (mode == MODE_FREESTYLE ? MODE_LOOP : MODE_FREESTYLE);
   }
@@ -167,13 +170,6 @@ boolean updateSharpButtonState() {
     return oldSharp != sharpPressed;
   }
   return false;
-}
-
-int checkModeButtonState() {
-  int buttonDown = digitalRead(modePin);
-  int wasButtonPress = button_press(buttonDown);
-  int buttonState = interpretButtonPress(wasButtonPress);
-  return buttonState;
 }
 
 boolean updateCurrentToneIndex() {
@@ -293,6 +289,38 @@ void disableMetronomeLight() {
 }
 
 ///////////////////////////////////
+// determine state of mode change button
+
+double modeButtonTimer[1] = {0};
+boolean triggeredDoubleClick = false;
+int clickLength = 0;
+
+int getModeButtonState() {
+  if(tick(MODE_BUTTON_CHECK_FREQUENCY, modeButtonTimer)) {
+    int button_pushed = digitalRead(modePin);
+    if(button_pushed) {
+      clickLength++;
+      if(clickLength == BUTTON_HOLD_MIN_LENGTH) {
+        if(!triggeredDoubleClick) {
+          triggeredDoubleClick = true;
+          return BUTTON_LONG_CLICKED;
+        }
+      }
+    }
+    else if(!button_pushed) {
+      if(clickLength > 0) {
+        clickLength = 0;
+        if(!triggeredDoubleClick) {
+          return BUTTON_CLICKED;
+        }
+      }
+      triggeredDoubleClick = false;
+    }
+  }
+  return BUTTON_NO_CLICK;
+}
+
+///////////////////////////////////
 // distance to index, with debouncing of out-of-range notes and note changes
 
 const int MIN_DISTANCE = 300;
@@ -377,55 +405,3 @@ boolean tick(int delay, double timekeeper[1]){
   }
 }
 
-int button_press_initiated[1];
-int button_press_completed[1];
-
-int button_press(int button_indicator) {
-  if (button_indicator == 0 && button_press_initiated[0] == 1) {
-    button_press_completed[0] = 1;
-    button_press_initiated[0] = 0;
-  }
-  else if (button_indicator == 1) {
-    button_press_initiated[0] = 1;
-    button_press_completed[0] = 0;
-  }
-  else {
-    button_press_completed[0] = 0;
-  }
-  return button_press_completed[0];
-}
-
-unsigned long double_click_timeout;
-int click_once;
-
-int interpretButtonPress(int button_pushed) {
-  int click_complete = 0;
-  int double_click_complete = 0;
-  if (button_pushed == 1) {
-    if (click_once == 1 && millis() <= double_click_timeout + DOUBLE_CLICK_WINDOW) {
-      double_click_complete = 1;
-      click_once = 0;
-    }
-    else if (click_once == 0) {
-      click_once = 1;
-      double_click_complete = 0;
-      double_click_timeout = millis();
-    }
-  }
-  else if (button_pushed == 0 && millis() >= double_click_timeout + DOUBLE_CLICK_WINDOW) {
-    if(click_once) {
-      click_complete = 1;
-    }
-    click_once = 0;
-    double_click_complete = 0;
-  }
-  if(click_complete) {
-    return BUTTON_CLICKED;
-  }
-  else if(double_click_complete) {
-    return BUTTON_DOUBLE_CLICKED;
-  }
-  else {
-    return BUTTON_NO_CLICK;
-  }
-}
