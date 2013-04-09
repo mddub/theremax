@@ -66,7 +66,7 @@ boolean metronomeOn = false;
 
 const boolean MODE_FREESTYLE = true;
 const boolean MODE_LOOP = false;
-boolean mode = MODE_LOOP;
+boolean mode = MODE_FREESTYLE;
 
 #define NUM_SAMPLES_PER_NOTE 16
 #define MAX_NOTES 128
@@ -269,7 +269,7 @@ int consecutiveOutOfRange = 0;
 const int OUT_OF_RANGE_THRESHOLD = 8;
 
 int consecutiveChangedNote = 0;
-const int NOTE_CHANGE_THRESHOLD = 3;
+const int NOTE_CHANGE_THRESHOLD = 9999;
 
 void updateIndexFromDistance(unsigned int distance) {
   if(distance < MIN_DISTANCE || distance > MAX_DISTANCE) {
