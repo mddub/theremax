@@ -29,11 +29,11 @@ int clockPin = 12;
 int dataPin = 11;
 
 double scales[5][8] = {
-  {NOTE_C3, NOTE_D3, NOTE_E3, NOTE_F3, NOTE_G3, NOTE_A3, NOTE_B3},
-  {NOTE_C4, NOTE_D4, NOTE_E4, NOTE_F4, NOTE_G4, NOTE_A4, NOTE_B4},
-  {NOTE_C5, NOTE_D5, NOTE_E5, NOTE_F5, NOTE_G5, NOTE_A5, NOTE_B5},
-  {NOTE_C6, NOTE_D6, NOTE_E6, NOTE_F6, NOTE_G6, NOTE_A6, NOTE_B6},
-  {NOTE_C7, NOTE_D7, NOTE_E7, NOTE_F7, NOTE_G7, NOTE_A7, NOTE_B7}
+  {NOTE_C3, NOTE_D3, NOTE_E3, NOTE_F3, NOTE_G3, NOTE_A3, NOTE_B3, NOTE_C4},
+  {NOTE_C4, NOTE_D4, NOTE_E4, NOTE_F4, NOTE_G4, NOTE_A4, NOTE_B4, NOTE_C5},
+  {NOTE_C5, NOTE_D5, NOTE_E5, NOTE_F5, NOTE_G5, NOTE_A5, NOTE_B5, NOTE_C6},
+  {NOTE_C6, NOTE_D6, NOTE_E6, NOTE_F6, NOTE_G6, NOTE_A6, NOTE_B6, NOTE_C7},
+  {NOTE_C7, NOTE_D7, NOTE_E7, NOTE_F7, NOTE_G7, NOTE_A7, NOTE_B7, NOTE_C8}
 };
 
 int currentScale = 0;
@@ -57,7 +57,7 @@ double loopTimer[1] = {0};
 
 int playButtonPressed = 0;
 boolean playing = false;
-double playingTone;
+int playingTone;
 
 int currentToneIndex;
 int sharpPressed = 0;
@@ -74,7 +74,6 @@ int currentTempo = 50; // length of sixteenth note, in ms
 
 double samples[NUM_SAMPLES_PER_NOTE];
 double currentSong[MAX_NOTES];
-//double currentSong[64] = {164.81, -1, 164.81, -1, 174.61, -1, 196, -1, 196, -1, 174.61, -1, 164.81, -1, 146.83, -1, 130.81, -1, 130.81, -1, 146.83, -1, 164.81, -1, 164.81, 164.81, 164.81, -1, 146.83, -1, 146.83, 146.83, 146.83, 146.83, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 
 int currentSampleIndex = 0;
 int currentLoopPosition = 0;
@@ -116,7 +115,7 @@ void loop() {
 
   if(mode == MODE_FREESTYLE) {
     if(toneIndexChanged || playButtonChanged || sharpButtonChanged) {
-      updatePlayingTone();
+      updatePlayingToneFromCurrentToneIndex();
     }
   }
   else if(mode == MODE_LOOP) {
@@ -165,25 +164,29 @@ void updateHighlightedTone(int toneIndex) {
   }
 }
 
-void updatePlayingTone() {
-  boolean shouldPlay;
+void updatePlayingToneFromCurrentToneIndex() {
+  int newTone;
   if(currentToneIndex == -1 || !playButtonPressed) {
-    if(playing) {
-      notePlayer[0].stop();
-      playing = false;
-      playingTone = -1;
-    }
+    newTone = -1;
   }
   else if(currentToneIndex >= 0) {
-    double newTone = currentToneIndex >= 0 ? scales[currentScale][currentToneIndex] : currentToneIndex;
+    newTone = currentToneIndex >= 0 ? scales[currentScale][currentToneIndex] : currentToneIndex;
     if(sharpPressed) {
-      newTone = newTone * HALF_STEP_RATIO;
+      newTone = (int)((double)newTone * HALF_STEP_RATIO);
     }
-    if(!playing || newTone != playingTone) {
-      notePlayer[0].play(newTone);
-      playing = true;
-      playingTone = newTone;
-    }
+  }
+  playTone(newTone);
+}
+
+void playTone(int newTone) {
+  if(newTone >= 0 && (!playing || newTone != playingTone)) {
+    notePlayer[0].play(newTone);
+    playing = true;
+    playingTone = newTone;
+  }
+  else if(newTone < 0 && playing) {
+    notePlayer[0].stop();
+    playing = false;
   }
 }
 
@@ -203,19 +206,11 @@ boolean updateLoopPosition() {
 void updateRecordingTone(boolean playButtonChanged, boolean loopChanged) {
   if(loopChanged) {
     if(!playButtonPressed) {
-      double newTone = currentSong[currentLoopPosition];
-      if(newTone >= 0 && (!playing || newTone != playingTone)) {
-        notePlayer[0].play(newTone);
-        playing = true;
-        playingTone = newTone;
-      }
-      else if(newTone < 0 && playing) {
-        notePlayer[0].stop();
-        playing = false;
-      }
+      int newTone = currentSong[currentLoopPosition];
+      playTone(newTone);
     }
     else {
-      updatePlayingTone();
+      updatePlayingToneFromCurrentToneIndex();
 	  updateRecordedNote();
     }
   }
@@ -230,13 +225,13 @@ void updateRecordedNote() {
   }
 }
 
-double determineSampledNoteValue() {
+int determineSampledNoteValue() {
   // do a really dumb O(n^2) search through the array to
   // find the first value with >= 50% representation.
   int minSamples = NUM_SAMPLES_PER_NOTE / 2;
 
   for(int i = 0; i < NUM_SAMPLES_PER_NOTE; i++) {
-    double candidateValue = samples[i];
+    int candidateValue = samples[i];
 	int count = 0;
 	for(int j = 0; j < NUM_SAMPLES_PER_NOTE; j++) {
 	  if(abs(candidateValue - samples[j]) < 0.001) {
