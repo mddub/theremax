@@ -264,7 +264,7 @@ void updateRecordingTone(boolean playButtonChanged, boolean loopChanged) {
 }
 
 void updateRecordedNote() {
-  samples[currentSampleIndex] = playingTone;
+  samples[currentSampleIndex] = playing ? playingTone : -1;
   if(currentSampleIndex == 0) {
     // need to decide what to save for previous note
     int previousNoteIndex = (currentLoopPosition - 1) % MAX_NOTES;
