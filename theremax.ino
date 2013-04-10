@@ -66,7 +66,7 @@ int playButtonPressed = 0;
 boolean playing = false;
 int playingTone;
 
-int currentToneIndex;
+int currentDistanceIndex;
 int sharpPressed = 0;
 
 boolean metronomeOn = false;
@@ -123,7 +123,7 @@ void setup() {
 void loop() {
   boolean playButtonChanged = updatePlayButtonState();
   boolean sharpButtonChanged = updateSharpButtonState();
-  boolean toneIndexChanged = updateCurrentToneIndex();
+  boolean distanceIndexChanged = updateCurrentDistanceIndex();
 
   boolean loopChanged = updateLoopPosition();
 
@@ -152,19 +152,19 @@ void loop() {
 
   boolean octaveChanged = updateTempoOrOctave();
 
-  if(toneIndexChanged) {
-    updateHighlightedTone(currentToneIndex);
+  if(distanceIndexChanged) {
+    updateHighlightedTone(currentDistanceIndex);
   }
 
   if(mode == MODE_FREESTYLE) {
-    if(toneIndexChanged || playButtonChanged || sharpButtonChanged || modeChanged || octaveChanged) {
+    if(distanceIndexChanged || playButtonChanged || sharpButtonChanged || modeChanged || octaveChanged) {
       // this is kind of gross. this is all the changes that should prompt us
       // to reconsider the tone we're emitting now based on user input
       updatePlayingToneFromEnvironment();
     }
   }
   else if(mode == MODE_LOOP) {
-    if(toneIndexChanged || playButtonChanged || sharpButtonChanged || loopChanged || octaveChanged) {
+    if(distanceIndexChanged || playButtonChanged || sharpButtonChanged || loopChanged || octaveChanged) {
       // similarly, any change that might cause us to change what note we're
       // playing based on recorded tones + user input
       updateRecordingTone(playButtonChanged, loopChanged);
@@ -192,32 +192,32 @@ boolean updateSharpButtonState() {
   return false;
 }
 
-boolean updateCurrentToneIndex() {
+boolean updateCurrentDistanceIndex() {
   if(tick(40, distanceCheckTimer)) {
     updateDistance();
-    int oldToneIndex = currentToneIndex;
+    int oldDistanceIndex = currentDistanceIndex;
     updateIndexFromDistance(currentDistance);
-    return oldToneIndex != currentToneIndex;
+    return oldDistanceIndex != currentDistanceIndex;
   }
   return false;
 }
 
-void updateHighlightedTone(int toneIndex) {
-  if(toneIndex >= 0) {
-    noteLightOn(toneIndex);
+void updateHighlightedTone(int distanceIndex) {
+  if(distanceIndex >= 0) {
+    noteLightOn(distanceIndex);
   }
-  else if(toneIndex < 0) {
+  else if(distanceIndex < 0) {
     noteLightOff();
   }
 }
 
 void updatePlayingToneFromEnvironment() {
   int newTone;
-  if(currentToneIndex == -1 || !playButtonPressed) {
+  if(currentDistanceIndex == -1 || !playButtonPressed) {
     newTone = -1;
   }
-  else if(currentToneIndex >= 0) {
-    newTone = currentToneIndex >= 0 ? scales[currentOctave][currentToneIndex] : currentToneIndex;
+  else if(currentDistanceIndex >= 0) {
+    newTone = currentDistanceIndex >= 0 ? scales[currentOctave][currentDistanceIndex] : currentDistanceIndex;
     if(sharpPressed) {
       newTone = (int)((double)newTone * HALF_STEP_RATIO);
     }
@@ -407,7 +407,7 @@ const int NOTE_CHANGE_THRESHOLD = 9999;
 void updateIndexFromDistance(unsigned int distance) {
   if(distance < MIN_DISTANCE || distance > MAX_DISTANCE) {
     if(++consecutiveOutOfRange > OUT_OF_RANGE_THRESHOLD) {
-      currentToneIndex = -1;
+      currentDistanceIndex = -1;
     }
     return;
   }
@@ -420,15 +420,15 @@ void updateIndexFromDistance(unsigned int distance) {
 
   // there is a segment at either edge of each note which must be debounced before it is accepted as a note change
   if(distance < MIN_DISTANCE + index * NOTE_WIDTH + NOTE_BOUNDARY_WIDTH || distance > MIN_DISTANCE + (index + 1) * NOTE_WIDTH - NOTE_BOUNDARY_WIDTH) {
-    if(index != currentToneIndex) {
+    if(index != currentDistanceIndex) {
       if(++consecutiveChangedNote >= NOTE_CHANGE_THRESHOLD) {
-        currentToneIndex = index;
+        currentDistanceIndex = index;
       }
     }
   }
   else {
     consecutiveChangedNote = 0;
-    currentToneIndex = index;
+    currentDistanceIndex = index;
   }
 }
 
