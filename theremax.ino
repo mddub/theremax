@@ -301,7 +301,7 @@ void tickMetronomeLight() {
     metronomeOn = !metronomeOn;
     // if we are in tempo-set mode, make the metronome dim
     // instead of completely off
-    int lowValue = (rotaryMode == ROTARY_TEMPO ? 100 : 0);
+    int lowValue = (rotaryMode == ROTARY_TEMPO ? 40 : 0);
     analogWrite(metronomeLightPin, metronomeOn ? 255 : lowValue);
   }
 }
