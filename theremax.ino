@@ -31,14 +31,15 @@ int clockPin = 12;
 ////Pin connected to DS of 74HC595
 int dataPin = 11;
 
-double scales[5][8] = {
+const int NUM_OCTAVES = 6;
+double scales[NUM_OCTAVES][8] = {
+  {65, 73, 82, 87, 98, 110, 123, 131},
   {NOTE_C3, NOTE_D3, NOTE_E3, NOTE_F3, NOTE_G3, NOTE_A3, NOTE_B3, NOTE_C4},
   {NOTE_C4, NOTE_D4, NOTE_E4, NOTE_F4, NOTE_G4, NOTE_A4, NOTE_B4, NOTE_C5},
   {NOTE_C5, NOTE_D5, NOTE_E5, NOTE_F5, NOTE_G5, NOTE_A5, NOTE_B5, NOTE_C6},
   {NOTE_C6, NOTE_D6, NOTE_E6, NOTE_F6, NOTE_G6, NOTE_A6, NOTE_B6, NOTE_C7},
   {NOTE_C7, NOTE_D7, NOTE_E7, NOTE_F7, NOTE_G7, NOTE_A7, NOTE_B7, NOTE_C8}
 };
-const int NUM_OCTAVES = 5;
 
 double HALF_STEP_RATIO = 1.059463094359;
 
@@ -78,7 +79,7 @@ const boolean ROTARY_TEMPO = true;
 const boolean ROTARY_OCTAVE = false;
 boolean rotaryMode = ROTARY_OCTAVE;
 
-int currentOctave = 0;
+int currentOctave = 1;
 
 const int BUTTON_NO_CLICK = 0;
 const int BUTTON_CLICKED = 1;
