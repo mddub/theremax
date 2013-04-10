@@ -131,7 +131,9 @@ void loop() {
 
   int modeButtonState = getModeButtonState();
 
+  bool modeChanged = false;
   if(modeButtonState == BUTTON_LONG_CLICKED) {
+    modeChanged = true;
     // switch instrument mode (freestyle vs loop)
     mode = (mode == MODE_FREESTYLE ? MODE_LOOP : MODE_FREESTYLE);
     if(mode == MODE_FREESTYLE) {
@@ -150,19 +152,23 @@ void loop() {
     disableMetronomeLight();
   }
 
-  updateTempoOrOctave();
+  boolean octaveChanged = updateTempoOrOctave();
 
   if(toneIndexChanged) {
     updateHighlightedTone(currentToneIndex);
   }
 
   if(mode == MODE_FREESTYLE) {
-    if(toneIndexChanged || playButtonChanged || sharpButtonChanged) {
-      updatePlayingToneFromCurrentToneIndex();
+    if(toneIndexChanged || playButtonChanged || sharpButtonChanged || modeChanged || octaveChanged) {
+      // this is kind of gross. this is all the changes that should prompt us
+      // to reconsider the tone we're emitting now based on user input
+      updatePlayingToneFromEnvironment();
     }
   }
   else if(mode == MODE_LOOP) {
-    if(toneIndexChanged || playButtonChanged || sharpButtonChanged || loopChanged) {
+    if(toneIndexChanged || playButtonChanged || sharpButtonChanged || loopChanged || octaveChanged) {
+      // similarly, any change that might cause us to change what note we're
+      // playing based on recorded tones + user input
       updateRecordingTone(playButtonChanged, loopChanged);
     }
   }
@@ -207,7 +213,7 @@ void updateHighlightedTone(int toneIndex) {
   }
 }
 
-void updatePlayingToneFromCurrentToneIndex() {
+void updatePlayingToneFromEnvironment() {
   int newTone;
   if(currentToneIndex == -1 || !playButtonPressed) {
     newTone = -1;
@@ -247,15 +253,15 @@ boolean updateLoopPosition() {
 }
 
 void updateRecordingTone(boolean playButtonChanged, boolean loopChanged) {
-  if(loopChanged) {
-    if(!playButtonPressed) {
+  if(!playButtonPressed) {
+    if(loopChanged) {
       int newTone = currentSong[currentLoopPosition];
       playTone(newTone);
     }
-    else {
-      updatePlayingToneFromCurrentToneIndex();
-	  updateRecordedNote();
-    }
+  }
+  else {
+    updatePlayingToneFromEnvironment();
+    updateRecordedNote();
   }
 }
 
@@ -312,7 +318,7 @@ void disableMetronomeLight() {
 
 unsigned char encoder_A_prev;
 
-void updateTempoOrOctave() {
+boolean updateTempoOrOctave() {
   int delta = 0;
 
   unsigned char encoder_A = digitalRead(rotaryPin1);
@@ -335,17 +341,23 @@ void updateTempoOrOctave() {
       int newOctave = currentOctave + delta;
       if(newOctave >= 0 && newOctave < NUM_OCTAVES) {
         currentOctave = newOctave;
+        return true;
       }
     }
     else if(rotaryMode == ROTARY_TEMPO) {
       // make size of tempo change proportional to current tempo
-      int tempoDelta = (int)(-4.0 * (double)currentTempo / 50.0 * (double)delta);
+      int tempoDelta = (int)(-4.0 * (double)currentTempo / 30.0 * (double)delta);
+      tempoDelta = 0 < tempoDelta && tempoDelta < 2 ? 2 : tempoDelta;
+      tempoDelta = 0 > tempoDelta && tempoDelta > -2 ? -2 : tempoDelta;
       int newTempo = currentTempo + tempoDelta;
       newTempo = newTempo < MIN_TEMPO ? MIN_TEMPO : newTempo;
       newTempo = newTempo > MAX_TEMPO ? MAX_TEMPO : newTempo;
       currentTempo = newTempo;
+      Serial.println(currentTempo);
     }
   }
+
+  return false;
 }
 
 ///////////////////////////////////
