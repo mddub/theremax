@@ -14,14 +14,14 @@ https://code.google.com/p/rogue-code/wiki/ToneLibraryDocumentation
 // constants
 
 #define trigPin 3
-#define echoPin 2
+#define echoPin 4
 #define speakerPin1 9
 //#define speakerPin2 10
-#define buttonPin 4
-#define rotaryPin1 6
-#define rotaryPin2 10
+#define buttonPin 6
+#define rotaryPin1 0
+#define rotaryPin2 1
 #define sharpPin 7
-#define modePin 13
+#define modePin 2
 #define metronomeLightPin 5
 
 //Pin connected to ST_CP of 74HC595
@@ -99,9 +99,6 @@ int currentLoopPosition = 0;
 ///////////////////////////////////
 
 void setup() {
-  // TODO remove
-  Serial.begin(9600);
-
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
   pinMode(buttonPin, INPUT);
@@ -353,7 +350,6 @@ boolean updateTempoOrOctave() {
       newTempo = newTempo < MIN_TEMPO ? MIN_TEMPO : newTempo;
       newTempo = newTempo > MAX_TEMPO ? MAX_TEMPO : newTempo;
       currentTempo = newTempo;
-      Serial.println(currentTempo);
     }
   }
 
