@@ -16,8 +16,10 @@ https://code.google.com/p/rogue-code/wiki/ToneLibraryDocumentation
 #define trigPin 3
 #define echoPin 2
 #define speakerPin1 9
-#define speakerPin2 10
+//#define speakerPin2 10
 #define buttonPin 4
+#define rotaryPin1 6
+#define rotaryPin2 10
 #define sharpPin 7
 #define modePin 13
 #define metronomeLightPin 5
@@ -36,13 +38,14 @@ double scales[5][8] = {
   {NOTE_C6, NOTE_D6, NOTE_E6, NOTE_F6, NOTE_G6, NOTE_A6, NOTE_B6, NOTE_C7},
   {NOTE_C7, NOTE_D7, NOTE_E7, NOTE_F7, NOTE_G7, NOTE_A7, NOTE_B7, NOTE_C8}
 };
+const int NUM_OCTAVES = 5;
 
 double HALF_STEP_RATIO = 1.059463094359;
 
 #define MAX_SENSOR_DISTANCE 200 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
 
 const int MODE_BUTTON_CHECK_FREQUENCY = 20; // ms
-const int BUTTON_HOLD_MIN_LENGTH = 6;
+const int BUTTON_HOLD_MIN_LENGTH = 25;
 
 ///////////////////////////////////
 // globals
@@ -71,7 +74,11 @@ const boolean MODE_FREESTYLE = true;
 const boolean MODE_LOOP = false;
 boolean mode = MODE_FREESTYLE;
 
-int currentScale = 0;
+const boolean ROTARY_TEMPO = true;
+const boolean ROTARY_OCTAVE = false;
+boolean rotaryMode = ROTARY_OCTAVE;
+
+int currentOctave = 0;
 
 const int BUTTON_NO_CLICK = 0;
 const int BUTTON_CLICKED = 1;
@@ -79,7 +86,9 @@ const int BUTTON_LONG_CLICKED = 2;
 
 #define NUM_SAMPLES_PER_NOTE 16
 #define MAX_NOTES 128
-int currentTempo = 50; // length of quarter note, in ms
+#define MIN_TEMPO 8
+#define MAX_TEMPO 250
+int currentTempo = 50; // length of eighth note, in ms
 
 double samples[NUM_SAMPLES_PER_NOTE];
 double currentSong[MAX_NOTES];
@@ -98,13 +107,15 @@ void setup() {
   pinMode(buttonPin, INPUT);
   pinMode(sharpPin, INPUT);
   pinMode(modePin, INPUT);
+  pinMode(rotaryPin1, INPUT);
+  pinMode(rotaryPin2, INPUT);
   pinMode(latchPin, OUTPUT);
   pinMode(clockPin, OUTPUT);
   pinMode(dataPin, OUTPUT);
   pinMode(metronomeLightPin, OUTPUT);
 
   notePlayer[0].begin(speakerPin1);
-  notePlayer[1].begin(speakerPin2);
+  //notePlayer[1].begin(speakerPin2);
 
   for(int i = 0; i < MAX_NOTES; i++) {
     currentSong[i] = -1;
@@ -120,12 +131,16 @@ void loop() {
 
   int modeButtonState = getModeButtonState();
 
-  if(modeButtonState == BUTTON_CLICKED) {
-    // switch knob mode (change tempo vs change octave)
-  }
-  else if(modeButtonState == BUTTON_LONG_CLICKED) {
+  if(modeButtonState == BUTTON_LONG_CLICKED) {
     // switch instrument mode (freestyle vs loop)
     mode = (mode == MODE_FREESTYLE ? MODE_LOOP : MODE_FREESTYLE);
+    if(mode == MODE_FREESTYLE) {
+      rotaryMode = ROTARY_OCTAVE;
+    }
+  }
+  else if(mode == MODE_LOOP && modeButtonState == BUTTON_CLICKED) {
+    // in loop mode, switch rotary mode (change tempo vs change octave)
+    rotaryMode = (rotaryMode == ROTARY_OCTAVE ? ROTARY_TEMPO : ROTARY_OCTAVE);
   }
 
   if(mode == MODE_LOOP) {
@@ -135,6 +150,7 @@ void loop() {
     disableMetronomeLight();
   }
 
+  updateTempoOrOctave();
 
   if(toneIndexChanged) {
     updateHighlightedTone(currentToneIndex);
@@ -197,7 +213,7 @@ void updatePlayingToneFromCurrentToneIndex() {
     newTone = -1;
   }
   else if(currentToneIndex >= 0) {
-    newTone = currentToneIndex >= 0 ? scales[currentScale][currentToneIndex] : currentToneIndex;
+    newTone = currentToneIndex >= 0 ? scales[currentOctave][currentToneIndex] : currentToneIndex;
     if(sharpPressed) {
       newTone = (int)((double)newTone * HALF_STEP_RATIO);
     }
@@ -275,17 +291,61 @@ int determineSampledNoteValue() {
 }
 
 void tickMetronomeLight() {
-  int currentNote = currentLoopPosition / 4;
+  int currentNote = currentLoopPosition / 8;
   boolean metronomeState = currentNote % 2;
   if(metronomeState != metronomeOn) {
     metronomeOn = !metronomeOn;
-    analogWrite(metronomeLightPin, metronomeOn ? 255 : 0);
+    // if we are in tempo-set mode, make the metronome dim
+    // instead of completely off
+    int lowValue = (rotaryMode == ROTARY_TEMPO ? 100 : 0);
+    analogWrite(metronomeLightPin, metronomeOn ? 255 : lowValue);
   }
 }
 
 void disableMetronomeLight() {
   metronomeOn = false;
   analogWrite(metronomeLightPin, 0);
+}
+
+///////////////////////////////////
+// mostly copy-pasted
+
+unsigned char encoder_A_prev;
+
+void updateTempoOrOctave() {
+  int delta = 0;
+
+  unsigned char encoder_A = digitalRead(rotaryPin1);
+  unsigned char encoder_B = digitalRead(rotaryPin2);
+  if((!encoder_A) && (encoder_A_prev)){
+    // A has gone from high to low
+    if(encoder_B) {
+      // B is high so clockwise
+      delta = 1;
+    }
+    else {
+      // B is low so counter-clockwise
+      delta = -1;
+    }
+  }
+  encoder_A_prev = encoder_A;
+
+  if(delta != 0) {
+    if(rotaryMode == ROTARY_OCTAVE) {
+      int newOctave = currentOctave + delta;
+      if(newOctave >= 0 && newOctave < NUM_OCTAVES) {
+        currentOctave = newOctave;
+      }
+    }
+    else if(rotaryMode == ROTARY_TEMPO) {
+      // make size of tempo change proportional to current tempo
+      int tempoDelta = (int)(-4.0 * (double)currentTempo / 50.0 * (double)delta);
+      int newTempo = currentTempo + tempoDelta;
+      newTempo = newTempo < MIN_TEMPO ? MIN_TEMPO : newTempo;
+      newTempo = newTempo > MAX_TEMPO ? MAX_TEMPO : newTempo;
+      currentTempo = newTempo;
+    }
+  }
 }
 
 ///////////////////////////////////
