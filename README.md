@@ -2,6 +2,12 @@
 
 A theremin-like instrument for Arduino, using a HC-SR04 ultrasonic ranging module.
 
+![](https://github.com/mddub/theremax/blob/master/photos/IMG_5648-450x300.jpg?raw=true "Theremax")
+
+## Demo
+
+* [Demo video](http://youtu.be/Jf77zi0XjPk)
+
 ## Features
 
 * Play notes of a C major scale based on distance from instrument
@@ -32,6 +38,10 @@ See the included Fritzing diagram for details (+ wires, resistors, etc.).
 * Fix some intermittent tempo issues during loop playback
 * Indicator of current recording bar on LEDs (using [ShiftPWM][3])
 * Record/playback two tones at once ([Tone][2] supports this)
+
+## Etc.
+
+* [A time-lapse video of us prototyping and building this](http://youtu.be/0IkWHqgWssk)
 
 [1]: http://playground.arduino.cc/Code/NewPing
 [2]: https://code.google.com/p/rogue-code/wiki/ToneLibraryDocumentation
